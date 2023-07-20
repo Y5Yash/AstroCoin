@@ -19,21 +19,22 @@ dotenv.config();
 const privateKey = process.env.PRIVATE_KEY;
 const dbPassword = process.env.DB_PWD;
 const dbUsername = process.env.DB_USER;
+const callbackBase = process.env.CALLBACK_BASE;
 
 // Connect to MongoDB Atlas. Use other DB if needed.
 const mongoUri = `mongodb+srv://${dbUsername}:${dbPassword}@cluster0.elv9kur.mongodb.net/`;
 const client = new MongoClient(mongoUri, { monitorCommands: true });
 
 // RPC for the testnet. Change to wherever the smart contract is to be hosted.
-const sepoliaProvider = 'https://rpc2.sepolia.org/'
+// Errors in code might be due to the provider being down. Try other RPC from https://sepolia.dev/
+const sepoliaProvider = 'https://rpc-sepolia.rockx.com/'
 const provider = new ethers.JsonRpcProvider(sepoliaProvider);
 
 app.use(cors());
 app.use(express.json());
 
 // This is the URL of where this code will be deployed (+ the '/callback' endpoint)
-const callbackUrl = `http://192.168.0.130:${port}/callback`;
-// const callbackUrl = `http://192.168.35.182:${port}/callback`;
+const callbackUrl = `${callbackBase}/callback`;
 
 const reclaim = new reclaimprotocol.Reclaim();
 
@@ -93,7 +94,6 @@ app.get("/request-proofs", async (req, res) => {
 
         const reclaimUrl = await request.getReclaimUrl();
         const { callbackId } = request;
-        console.log(request.getReclaimUrl);
         console.log(callbackId)
         console.log(reclaimUrl)
         await callbackCollection.insertOne({callbackId: callbackId, verified: false, used: false, zodiac: null});
@@ -133,7 +133,6 @@ function getZodiacIdFromProof(dob: string) {
     console.log(dobList);
     const zodiac = Number(dobList[1]);
     const date = Number(dobList[2]);
-    // const daysInMonth = [31,29,31,30,31,30,31,31,30,31,30,31]
     const bday100 = 100*(zodiac%12) + date;
     const sunSignStart = [321, 420, 521, 621, 723, 823, 923, 1023, 1122, 1222, 120, 219, 321];
     for (let i = 0; i<12; i++)
