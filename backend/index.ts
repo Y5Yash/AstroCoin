@@ -161,7 +161,7 @@ app.post("/callback/", async (req, res) => {
         const onChainClaimIds = reclaim.getOnChainClaimIdsFromProofs(proofs);
         console.log(onChainClaimIds, "<-onChainClaimIds")
         // verify
-        const isProofsCorrect = await reclaim.verifyCorrectnessOfProofs(proofs);
+        const isProofsCorrect = await reclaim.verifyCorrectnessOfProofs(callbackId as string, proofs);
         // *********** Get Correct Proofs ********** //
         if (isProofsCorrect) {
             res.json({success: true});
