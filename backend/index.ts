@@ -19,7 +19,7 @@ dotenv.config();
 const privateKey = process.env.PRIVATE_KEY;
 const dbPassword = process.env.DB_PWD;
 const dbUsername = process.env.DB_USER;
-const callbackIp = process.env.CALLBACK_IP;
+const callbackBase = process.env.CALLBACK_BASE;
 
 // Connect to MongoDB Atlas. Use other DB if needed.
 const mongoUri = `mongodb+srv://${dbUsername}:${dbPassword}@cluster0.elv9kur.mongodb.net/`;
@@ -34,8 +34,7 @@ app.use(cors());
 app.use(express.json());
 
 // This is the URL of where this code will be deployed (+ the '/callback' endpoint)
-const callbackUrl = `${callbackIp}:${port}/callback`;
-// const callbackUrl = `http://192.168.35.182:${port}/callback`;
+const callbackUrl = `${callbackBase}/callback`;
 
 const reclaim = new reclaimprotocol.Reclaim();
 
@@ -161,7 +160,7 @@ app.post("/callback/", async (req, res) => {
         const onChainClaimIds = reclaim.getOnChainClaimIdsFromProofs(proofs);
         console.log(onChainClaimIds, "<-onChainClaimIds")
         // verify
-        const isProofsCorrect = await reclaim.verifyCorrectnessOfProofs(proofs);
+        const isProofsCorrect = await reclaim.verifyCorrectnessOfProofs(callbackId as string, proofs);
         // *********** Get Correct Proofs ********** //
         if (isProofsCorrect) {
             res.json({success: true});
