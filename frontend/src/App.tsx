@@ -19,7 +19,7 @@ const App: React.FC = () => {
   const [walletAddr, setWalletAddr] = useState('Wallet Address: Unknown');
   const [gotErrorTxn, setGotErrorTxn] = useState(false);
   // Update the backendBase according to where it is hosted.
-  const backendBase = 'http://192.168.0.130:3000';
+  const backendBase = 'https://astrocoin-backend.onrender.com';
   const backendTemplateUrl = `${backendBase}/request-proofs`;
   const backendRefresh = `${backendBase}/isProofVerified`;
   const backendAirDrop = `${backendBase}/sendTransaction`;
