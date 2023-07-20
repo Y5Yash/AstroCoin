@@ -17,7 +17,6 @@ const port = 3000;
 // Get instance specific variables from the '.env' file
 dotenv.config();
 const privateKey = process.env.PRIVATE_KEY;
-const publicAddress = process.env.PUBLIC_ADDRESS;
 const dbPassword = process.env.DB_PWD;
 const dbUsername = process.env.DB_USER;
 
@@ -86,17 +85,19 @@ app.get("/request-proofs", async (req, res) => {
             baseCallbackUrl: callbackUrl,
             requestedProofs: [
                 new reclaim.CustomProvider({
-                    provider: 'codeforces-rating',
+                    provider: 'uidai-dob',
                     payload: {}
                 }),
             ],
         });
 
-        const { callbackId, reclaimUrl } = request;
+        const reclaimUrl = await request.getReclaimUrl();
+        const { callbackId } = request;
+        console.log(request.getReclaimUrl);
         console.log(callbackId)
         console.log(reclaimUrl)
-        await callbackCollection.insertOne({callbackId: callbackId, verified: false, used: false, month: null});
-        res.status(200).json({ reclaimUrl });
+        await callbackCollection.insertOne({callbackId: callbackId, verified: false, used: false, zodiac: null});
+        res.status(200).json({ reclaimUrl, callbackId });
     }
     catch (error) {
         console.error("Error requesting proofs:", error);
@@ -125,8 +126,24 @@ async function checkCallbackIdValid(callbackId: string | ParsedQs | string[] | P
     return true;
 }
 
-function getMonthIdFromProof(dob: number) {
-    return dob%12 + 1;
+// helper function to determine the zodiac
+function getZodiacIdFromProof(dob: string) {
+    console.log(dob);
+    const dobList = dob.split('-');
+    console.log(dobList);
+    const zodiac = Number(dobList[1]);
+    const date = Number(dobList[2]);
+    // const daysInMonth = [31,29,31,30,31,30,31,31,30,31,30,31]
+    const bday100 = 100*(zodiac%12) + date;
+    const sunSignStart = [321, 420, 521, 621, 723, 823, 923, 1023, 1122, 1222, 120, 219, 321];
+    for (let i = 0; i<12; i++)
+    {
+        if ((sunSignStart[i]%1200) <= bday100 && bday100 < sunSignStart[i+1])
+        {
+            return i+1;
+        }
+    }
+    return 0;
 }
 
 // endpoint to receive the proof from the Reclaim Wallet App.
@@ -145,6 +162,7 @@ app.post("/callback/", async (req, res) => {
         console.log(onChainClaimIds, "<-onChainClaimIds")
         // verify
         const isProofsCorrect = await reclaim.verifyCorrectnessOfProofs(proofs);
+        // *********** Get Correct Proofs ********** //
         if (isProofsCorrect) {
             res.json({success: true});
         }
@@ -154,7 +172,16 @@ app.post("/callback/", async (req, res) => {
         }
 
         // ******* Correct this later ******** //
-        const monthId = getMonthIdFromProof(proofs[0]?.parameters?.rating);
+        const params = JSON.parse(proofs[0]?.parameters)
+        console.log("Just parameters", params);
+        console.log("DoB", params, typeof params, Object.keys(params));
+        console.log("stringify params:>,", JSON.stringify(params))
+        // console.log(proofs[0]?.parameters['dob']);
+        const zodiacIdOne = getZodiacIdFromProof(params.dob);
+        if (zodiacIdOne===0)
+        {
+            throw new Error("Invalid zodiac. Wrong DOB input or logic.");
+        }
 
         const db = client.db();
         const callbackCollection = db.collection('callbackIds');
@@ -162,7 +189,7 @@ app.post("/callback/", async (req, res) => {
         const isValidCallbackId = await checkCallbackIdValid(callbackId, callbackCollection);
         if (!isValidCallbackId) throw new Error(`Callback ID either not found or already submitted`);
 
-        const result = await callbackCollection.updateOne({callbackId: callbackId}, {$set: {callbackId: callbackId, verified: true, used: false, month: monthId}});
+        const result = await callbackCollection.updateOne({callbackId: callbackId}, {$set: {callbackId: callbackId, verified: true, used: false, zodiac: zodiacIdOne}});
         if (result.matchedCount === 0) {
             console.log(callbackId, " not found in the database");
             throw new Error(`${callbackId} not found in the database.`);
@@ -194,12 +221,34 @@ async function checkCallbackIdVerified(callbackId: string | ParsedQs | string[] 
         console.log(callbackId, " has already received an airdrop");
         return 0;
     }
-    if (entry.month > 12 || entry.month < 1) {
-        console.log(`Month ${entry.month} out of range (0-11)`)
+    if (entry.zodiac > 12 || entry.zodiac < 1) {
+        console.log(`Zodiac ${entry.zodiac} out of range (0-11)`)
         return 0;
     }
-    return entry.month;
+    return entry.zodiac;
 }
+
+// endpoint to check if the proof is verified
+app.get('/isProofVerified', async (req, res) => {
+    const {id: callbackId} = req.query;
+    try {
+        const db = client.db();
+        const callbackCollection = db.collection('callbackIds');
+        const zodiacIdOne = await checkCallbackIdVerified(callbackId, callbackCollection);
+        if (!zodiacIdOne) {
+            // throw new Error('Proof not verified yet');
+            res.status(200).json({success: false});
+        }
+        else {
+            res.status(200).json({success: true});
+        }
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({msg: "DB error"});
+    }
+    return;
+});
 
 // endpoint to initiate the AirDrop once a proof is verified.
 app.get('/sendTransaction', async (req, res) => {
@@ -208,24 +257,25 @@ app.get('/sendTransaction', async (req, res) => {
     try {
         const db = client.db();
         const callbackCollection = db.collection('callbackIds');
-        const monthIdOne = await checkCallbackIdVerified(callbackId, callbackCollection);
-        if (!monthIdOne) {
+        const zodiacIdOne = await checkCallbackIdVerified(callbackId, callbackCollection);
+        if (!zodiacIdOne) {
             res.status(404).json({msg: "Callback Id not found"});
             return;
         }
-        const monthId = monthIdOne - 1;
+        const zodiacId = zodiacIdOne - 1;
+        console.log("Your zodiac Id is", zodiacId);
 
-        const tx = await contracts[monthId].airDropTo(airDropAddress);
+        const tx = await contracts[zodiacId].airDropTo(airDropAddress);
         console.log("-- the transaction is:\n", tx);
         const receipt = await tx.wait();
         console.log("-- the receipt is:\n", receipt);
-        const result = await callbackCollection.updateOne({callbackId: callbackId}, {$set: {callbackId: callbackId, verified: true, used: true, month: monthId}});
+        const result = await callbackCollection.updateOne({callbackId: callbackId}, {$set: {callbackId: callbackId, verified: true, used: true, zodiac: zodiacId}});
         if (result.matchedCount === 0) {
             console.log(callbackId, " not found in the database");
             throw new Error(`${callbackId} not found in the database.`);
         }
         console.log(result);
-        res.status(200).json(receipt);
+        res.status(200).json({receipt: receipt});
     }
     catch (error) {
         console.log("DB not connected/transaction error: ", error);
