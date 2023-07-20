@@ -172,7 +172,8 @@ h2 {
 
 @media screen and (max-width: 500px) {
   .navbar-wallet {
-    visibility: hidden;
+    /* visibility: hidden; */
+    font-size: x-small;
   }
   .large-text {
     font-size: smaller;
