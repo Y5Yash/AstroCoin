@@ -168,6 +168,7 @@ app.post("/callback/", async (req, res) => {
         else {
             res.status(400).json({success: false});
             console.log("Proof verification failed");
+            return;
         }
 
         // ******* Correct this later ******** //
