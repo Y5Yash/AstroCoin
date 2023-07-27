@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@reclaimprotocol/reclaim-sdk": "^4.2.4",
+    "@reclaimprotocol/reclaim-sdk": "^4.4.2",
     "@types/node": "^20.3.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
